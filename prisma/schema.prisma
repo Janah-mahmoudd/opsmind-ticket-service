@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+
+
+enum TicketType {
+  INCIDENT
+  SERVICE_REQUEST
+  PROBLEM
+}
+
+enum TicketStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Ticket {
+  id                 String         @id @default(uuid())
+  title              String
+  description        String
+
+  type               TicketType
+  status             TicketStatus
+  priority           TicketPriority
+
+  createdByUserId    String
+  assignedToUserId   String?
+
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  resolvedAt         DateTime?
+  closedAt           DateTime?
+
+  @@index([status])
+  @@index([priority])
+  @@index([assignedToUserId])
+  @@index([createdAt])
+}
