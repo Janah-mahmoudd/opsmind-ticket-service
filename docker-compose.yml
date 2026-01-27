@@ -1,0 +1,43 @@
+version: "3.8"
+
+services:
+  ticket-service:
+    build: .
+    container_name: opsmind-ticket-service
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=${DATABASE_URL}
+      - RABBITMQ_URL=amqp://opsmind:opsmind@rabbitmq:5672
+    depends_on:
+      - rabbitmq
+      - db
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: opsmind-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: opsmind
+      RABBITMQ_DEFAULT_PASS: opsmind
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  db:
+    image: mysql:8
+    container_name: opsmind-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: prisma
+      MYSQL_DATABASE: Tickets
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  rabbitmq_data:
+  mysql_data:
