@@ -17,7 +17,6 @@ services:
 
   rabbitmq:
     image: rabbitmq:3.13-management
-    container_name: opsmind-rabbitmq
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -29,7 +28,6 @@ services:
 
   db:
     image: mysql:8
-    container_name: opsmind-mysql
     environment:
       MYSQL_ROOT_PASSWORD: prisma
       MYSQL_DATABASE: Tickets
