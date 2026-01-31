@@ -9,14 +9,19 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=mysql://root:prisma@db:3306/Tickets
       - RABBITMQ_URL=amqp://opsmind:opsmind@rabbitmq:5672
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:3001
     depends_on:
-      - rabbitmq
-      - db
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
 
   rabbitmq:
     image: rabbitmq:3.13-management
+    container_name: opsmind-rabbitmq
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -25,9 +30,16 @@ services:
       RABBITMQ_DEFAULT_PASS: opsmind
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   db:
     image: mysql:8
+    container_name: opsmind-mysql
     environment:
       MYSQL_ROOT_PASSWORD: prisma
       MYSQL_DATABASE: Tickets
@@ -35,6 +47,12 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 volumes:
   rabbitmq_data:

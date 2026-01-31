@@ -1,25 +1,54 @@
-# Use official Node LTS image
-FROM node:20-alpine
+# Build stage
+FROM node:20-alpine AS builder
 
-# Create app directory
-WORKDIR /usr/src/app
+WORKDIR /app
 
-# Install app dependencies
-COPY package.json package-lock.json* ./
-RUN npm install --production
+# Copy package files first (layer caching)
+COPY package*.json ./
+COPY prisma ./prisma/
+
+# Install all dependencies (including dev)
+RUN npm ci
 
 # Copy source code
-COPY . .
+COPY tsconfig.json ./
+COPY src ./src
 
-# Build TypeScript if needed (here we use ts-node-dev in dev, but for prod build TS)
-RUN npx tsc
+# Generate Prisma client and build TypeScript
+RUN npx prisma generate
+RUN npm run build
 
-# Environment
+# Production stage
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs \
+    && adduser --system --uid 1001 appuser
+
+# Copy only production dependencies
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Copy Prisma schema and generated client
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+
+# Copy compiled JavaScript
+COPY --from=builder /app/dist ./dist
+
+# Switch to non-root user
+USER appuser
+
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Expose port
 EXPOSE 3000
 
-# Start the server (compiled JS in dist)
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+
 CMD ["node", "dist/server.js"]

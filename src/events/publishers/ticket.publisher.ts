@@ -1,23 +1,43 @@
-import { getChannel } from "../../lib/rabbitmq";
+import { getChannel, EXCHANGE_NAME } from "../../lib/rabbitmq";
+import { logger } from "../../config/logger";
+import { Ticket } from "@prisma/client";
 
-export async function publishTicketCreated(ticket: any) {
+export async function publishTicketCreated(ticket: Ticket): Promise<void> {
   const channel = getChannel();
-
-  const exchange = "ticket.events";
   const routingKey = "ticket.created";
 
-  await channel.assertExchange(exchange, "topic", { durable: true });
+  const message = {
+    eventType: "ticket.created",
+    occurredAt: new Date().toISOString(),
+    data: ticket,
+  };
 
   channel.publish(
-    exchange,
+    EXCHANGE_NAME,
     routingKey,
-    Buffer.from(JSON.stringify({
-      eventType: "ticket.created",
-      occurredAt: new Date().toISOString(),
-      data: ticket,
-    })),
+    Buffer.from(JSON.stringify(message)),
     { persistent: true }
   );
 
-  console.log("📤 Event published: ticket.created");
+  logger.info("Event published: ticket.created", { ticketId: ticket.id });
+}
+
+export async function publishTicketUpdated(ticket: Ticket): Promise<void> {
+  const channel = getChannel();
+  const routingKey = "ticket.updated";
+
+  const message = {
+    eventType: "ticket.updated",
+    occurredAt: new Date().toISOString(),
+    data: ticket,
+  };
+
+  channel.publish(
+    EXCHANGE_NAME,
+    routingKey,
+    Buffer.from(JSON.stringify(message)),
+    { persistent: true }
+  );
+
+  logger.info("Event published: ticket.updated", { ticketId: ticket.id });
 }
