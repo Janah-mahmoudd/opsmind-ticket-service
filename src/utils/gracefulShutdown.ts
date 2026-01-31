@@ -1,4 +1,4 @@
-import { prisma } from "../lib/prisma";
+/*import { prisma } from "../lib/prisma";
 import { closeRabbitMQ } from "../lib/rabbitmq";
 import { logger } from "../config/logger";
 
@@ -41,3 +41,4 @@ export function setupGracefulShutdown(): void {
     gracefulShutdown("unhandledRejection");
   });
 }
+*/

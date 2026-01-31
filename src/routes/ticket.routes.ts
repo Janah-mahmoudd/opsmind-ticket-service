@@ -13,6 +13,36 @@ import { validate } from "../middleware/validate.middleware";
 const router = Router();
 
 /**
+ * @openapi
+ * /tickets:
+ *   post:
+ *     tags: [Tickets]
+ *     summary: Create a ticket
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [title, description, type, priority, createdByUserId]
+ *             properties:
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               type:
+ *                 type: string
+ *                 enum: [INCIDENT, SERVICE_REQUEST, PROBLEM]
+ *               priority:
+ *                 type: string
+ *                 enum: [LOW, MEDIUM, HIGH, CRITICAL]
+ *               createdByUserId:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Created
+ */
+/**
  * POST /tickets
  */
 router.post("/", validate(createTicketSchema), async (req, res, next) => {
@@ -41,6 +71,41 @@ router.post("/", validate(createTicketSchema), async (req, res, next) => {
 });
 
 /**
+ * @openapi
+ * /tickets:
+ *   get:
+ *     tags: [Tickets]
+ *     summary: List tickets
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [OPEN, ASSIGNED, IN_PROGRESS, RESOLVED, CLOSED]
+ *       - in: query
+ *         name: priority
+ *         schema:
+ *           type: string
+ *           enum: [LOW, MEDIUM, HIGH, CRITICAL]
+ *       - in: query
+ *         name: assignedToUserId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *     responses:
+ *       200:
+ *         description: OK
+ */
+/**
  * GET /tickets
  */
 router.get("/", async (req, res, next) => {
@@ -65,6 +130,24 @@ router.get("/", async (req, res, next) => {
 });
 
 /**
+ * @openapi
+ * /tickets/{id}:
+ *   get:
+ *     tags: [Tickets]
+ *     summary: Get ticket by id
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: OK
+ *       404:
+ *         description: Ticket not found
+ */
+/**
  * GET /tickets/:id
  */
 router.get("/:id", async (req, res, next) => {
@@ -85,6 +168,43 @@ router.get("/:id", async (req, res, next) => {
   }
 });
 
+/**
+ * @openapi
+ * /tickets/{id}:
+ *   patch:
+ *     tags: [Tickets]
+ *     summary: Update a ticket
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               status:
+ *                 type: string
+ *                 enum: [OPEN, ASSIGNED, IN_PROGRESS, RESOLVED, CLOSED]
+ *               priority:
+ *                 type: string
+ *                 enum: [LOW, MEDIUM, HIGH, CRITICAL]
+ *               assignedToUserId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: OK
+ *       404:
+ *         description: Ticket not found
+ */
 /**
  * PATCH /tickets/:id
  */
@@ -122,6 +242,24 @@ router.patch("/:id", validate(updateTicketSchema), async (req, res, next) => {
   }
 });
 
+/**
+ * @openapi
+ * /tickets/{id}:
+ *   delete:
+ *     tags: [Tickets]
+ *     summary: Delete a ticket
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       204:
+ *         description: Deleted
+ *       404:
+ *         description: Ticket not found
+ */
 /**
  * DELETE /tickets/:id
  */

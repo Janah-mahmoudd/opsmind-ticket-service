@@ -15,13 +15,16 @@ COPY tsconfig.json ./
 COPY src ./src
 
 # Generate Prisma client and build TypeScript
-RUN npx prisma generate
+RUN rm -rf node_modules/.prisma node_modules/@prisma/client && npx prisma generate
 RUN npm run build
 
 # Production stage
 FROM node:20-alpine AS runner
 
 WORKDIR /app
+
+# Prisma on Alpine needs OpenSSL and (sometimes) glibc compatibility
+RUN apk add --no-cache openssl libc6-compat
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs \
@@ -51,4 +54,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 
-CMD ["node", "dist/server.js"]
+# Run migrations then start server
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]
