@@ -12,18 +12,15 @@ const options: Options = {
       version: "1.0.0",
       description: "REST API for managing tickets.",
     },
-    servers: [
-      {
-        url: `http://localhost:${config.port}`,
-      },
-    ],
+    // Best practice for reverse-proxies / Docker port-mapping:
+    // use a relative server so Swagger UI uses the same origin that served /docs
+    // (avoids hardcoding localhost:3000 while the host publishes 3001).
+    servers: [{ url: "/" }],
     tags: [{ name: "Tickets" }, { name: "Health" }, { name: "Docs" }],
   },
   // IMPORTANT:
-  // When running in Docker/production we execute `dist/server.js`.
-  // swagger-jsdoc resolves globs relative to process.cwd(), so the old
-  // `./src/...` patterns can end up not matching and produce an empty spec.
-  // We include both TS (dev) and compiled JS (prod) sources.
+  // swagger-jsdoc resolves globs relative to process.cwd(). We include both
+  // TS sources (dev) and compiled JS (prod/Docker).
   apis: [
     path.join(cwd, "src", "routes", "**", "*.ts"),
     path.join(cwd, "src", "app.ts"),
