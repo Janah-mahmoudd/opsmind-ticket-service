@@ -11,7 +11,7 @@ A microservice for managing IT support tickets with event-driven architecture.
 - ✅ Graceful shutdown handling
 - ✅ Structured JSON logging
 - ✅ Health checks (basic + deep)
-- ✅ CORS support
+- ✅ CORS support (see below)
 - ✅ Docker + Docker Compose ready
 
 ## Tech Stack
@@ -124,6 +124,9 @@ Events are published to exchange: `ticket.events` (topic exchange).
 docker-compose up --build
 ```
 
+- The service is exposed on port **3001** (host) mapped to **3000** (container).
+- CORS is enabled for: `http://localhost:5173`, `http://localhost:3001`, and `http://localhost:8085` (see `CORS_ORIGINS` in `docker-compose.yml`).
+
 ### Build image only
 
 ```bash
@@ -158,6 +161,17 @@ src/
 └── utils/
     └── gracefulShutdown.ts
 ```
+
+## GitHub User Configuration (Local Commits)
+
+To ensure all commits and pushes from this project are associated with your GitHub user:
+
+```bash
+git config user.name "Janah-mahmoudd"
+git config user.email "janahmahmoud94@gmail.com"
+```
+
+This sets your Git identity for this repository only.
 
 ## License
 
