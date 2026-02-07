@@ -20,19 +20,22 @@ const router = Router();
  *   post:
  *     tags: [Tickets]
  *     summary: Create a ticket
- *     description: "Only title, description, building, room, and requester_id are user-provided. All other fields are system-assigned. Initial status is OPEN."
+ *     description: "Only title, description, type_of_request, building, room, and requester_id are user-provided. All other fields are system-assigned. Initial status is OPEN."
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [title, description, building, room, requester_id]
+ *             required: [title, description, type_of_request, building, room, requester_id]
  *             properties:
  *               title:
  *                 type: string
  *               description:
  *                 type: string
+ *               type_of_request:
+ *                 type: string
+ *                 enum: [INCIDENT, SERVICE_REQUEST, MAINTENANCE]
  *               building:
  *                 type: string
  *               room:
@@ -45,7 +48,7 @@ const router = Router();
  */
 router.post("/", validate(createTicketSchema), async (req, res, next) => {
   try {
-    const { title, description, building, room, requester_id } = req.body as CreateTicketInput;
+    const { title, description, type_of_request, building, room, requester_id } = req.body as CreateTicketInput;
     // System-assigned fields (static rules, example values)
     const priority = "MEDIUM"; // Example static rule
     const support_level = "L1";
@@ -56,6 +59,7 @@ router.post("/", validate(createTicketSchema), async (req, res, next) => {
       data: {
         title,
         description,
+        type_of_request,
         building,
         room,
         requester_id,
@@ -186,6 +190,9 @@ router.get("/:id", async (req, res, next) => {
  *                 type: string
  *               description:
  *                 type: string
+ *               type_of_request:
+ *                 type: string
+ *                 enum: [INCIDENT, SERVICE_REQUEST, MAINTENANCE]
  *               building:
  *                 type: string
  *               room:

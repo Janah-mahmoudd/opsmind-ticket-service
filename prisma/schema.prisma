@@ -28,10 +28,17 @@ enum TicketStatus {
   CLOSED
 }
 
+enum RequestType {
+  INCIDENT
+  SERVICE_REQUEST
+  MAINTENANCE
+}
+
 model Ticket {
   id                 String           @id @default(uuid())
   title              String
   description        String           @db.Text
+  type_of_request    RequestType      @default(INCIDENT) // ENUM
   requester_id       String           // UUID
   assigned_to        String?          // UUID, nullable
   assigned_to_level  SupportLevel     // ENUM
