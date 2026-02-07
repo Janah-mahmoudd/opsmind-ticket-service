@@ -5,51 +5,60 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  url      = env("DATABASE_URL")
 }
 
-
-
-enum TicketType {
-  INCIDENT
-  SERVICE_REQUEST
-  PROBLEM
-}
-
-enum TicketStatus {
-  OPEN
-  ASSIGNED
-  IN_PROGRESS
-  RESOLVED
-  CLOSED
+enum SupportLevel {
+  L1
+  L2
+  L3
+  L4
 }
 
 enum TicketPriority {
   LOW
   MEDIUM
   HIGH
-  CRITICAL
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
 }
 
 model Ticket {
-  id                 String         @id @default(uuid())
-  title              String
-  description        String
+  id                String           @id @default(uuid())
+  requester_id      String           // UUID
+  assigned_to       String?          // UUID, nullable
+  assigned_to_level SupportLevel     // ENUM
+  priority          TicketPriority   // ENUM
+  support_level     SupportLevel     // ENUM
+  status            TicketStatus     // ENUM
+  escalation_count  Int              @default(0)
+  resolution_summary String?         // text, nullable
+  building          String
+  room              String
+  is_deleted        Boolean          @default(false)
+  created_at        DateTime         @default(now())
+  updated_at        DateTime         @updatedAt
+  closed_at         DateTime?        // nullable
 
-  type               TicketType
-  status             TicketStatus
-  priority           TicketPriority
-
-  createdByUserId    String
-  assignedToUserId   String?
-
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
-  resolvedAt         DateTime?
-  closedAt           DateTime?
+  escalations       TicketEscalation[]
 
   @@index([status])
   @@index([priority])
-  @@index([assignedToUserId])
-  @@index([createdAt])
+  @@index([assigned_to])
+  @@index([created_at])
+}
+
+model TicketEscalation {
+  id          String       @id @default(uuid())
+  ticket_id   String
+  from_level  SupportLevel // ENUM
+  to_level    SupportLevel // ENUM
+  reason      String
+  created_at  DateTime     @default(now())
+
+  ticket      Ticket       @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
 }

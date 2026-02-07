@@ -3,8 +3,10 @@ import { prisma } from "../lib/prisma";
 import {
   createTicketSchema,
   updateTicketSchema,
+  escalateTicketSchema,
   CreateTicketInput,
   UpdateTicketInput,
+  EscalateTicketInput,
 } from "../validation/ticket.schema";
 import { AppError } from "../errors/AppError";
 import { publishTicketCreated, publishTicketUpdated } from "../events/publishers/ticket.publisher";
@@ -18,52 +20,54 @@ const router = Router();
  *   post:
  *     tags: [Tickets]
  *     summary: Create a ticket
+ *     description: "Only title, description, building, room, and requester_id are user-provided. All other fields are system-assigned. Initial status is OPEN."
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [title, description, type, priority, createdByUserId]
+ *             required: [title, description, building, room, requester_id]
  *             properties:
  *               title:
  *                 type: string
  *               description:
  *                 type: string
- *               type:
+ *               building:
  *                 type: string
- *                 enum: [INCIDENT, SERVICE_REQUEST, PROBLEM]
- *               priority:
+ *               room:
  *                 type: string
- *                 enum: [LOW, MEDIUM, HIGH, CRITICAL]
- *               createdByUserId:
+ *               requester_id:
  *                 type: string
  *     responses:
  *       201:
  *         description: Created
  */
-/**
- * POST /tickets
- */
 router.post("/", validate(createTicketSchema), async (req, res, next) => {
   try {
-    const { title, description, type, priority, createdByUserId } =
-      req.body as CreateTicketInput;
-
+    const { title, description, building, room, requester_id } = req.body as CreateTicketInput;
+    // System-assigned fields (static rules, example values)
+    const priority = "MEDIUM"; // Example static rule
+    const support_level = "L1";
+    const assigned_to_level = "L1";
+    const status = "OPEN";
+    const escalation_count = 0;
     const ticket = await prisma.ticket.create({
       data: {
         title,
         description,
-        type,
+        building,
+        room,
+        requester_id,
         priority,
-        status: "OPEN",
-        createdByUserId,
+        support_level,
+        assigned_to_level,
+        status,
+        escalation_count,
+        is_deleted: false,
       },
     });
-
-    // Emit event AFTER DB commit
     await publishTicketCreated(ticket);
-
     return res.status(201).json(ticket);
   } catch (err) {
     next(err);
@@ -76,19 +80,20 @@ router.post("/", validate(createTicketSchema), async (req, res, next) => {
  *   get:
  *     tags: [Tickets]
  *     summary: List tickets
+ *     description: "Returns all tickets except soft-deleted (is_deleted = false)."
  *     parameters:
  *       - in: query
  *         name: status
  *         schema:
  *           type: string
- *           enum: [OPEN, ASSIGNED, IN_PROGRESS, RESOLVED, CLOSED]
+ *           enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED]
  *       - in: query
  *         name: priority
  *         schema:
  *           type: string
- *           enum: [LOW, MEDIUM, HIGH, CRITICAL]
+ *           enum: [LOW, MEDIUM, HIGH]
  *       - in: query
- *         name: assignedToUserId
+ *         name: requester_id
  *         schema:
  *           type: string
  *       - in: query
@@ -105,24 +110,20 @@ router.post("/", validate(createTicketSchema), async (req, res, next) => {
  *       200:
  *         description: OK
  */
-/**
- * GET /tickets
- */
 router.get("/", async (req, res, next) => {
   try {
-    const { status, priority, assignedToUserId, limit, offset } = req.query;
-
+    const { status, priority, requester_id, limit, offset } = req.query;
     const tickets = await prisma.ticket.findMany({
       where: {
-        ...(typeof status === "string" && { status: status as "OPEN" | "ASSIGNED" | "IN_PROGRESS" | "RESOLVED" | "CLOSED" }),
-        ...(typeof priority === "string" && { priority: priority as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" }),
-        ...(typeof assignedToUserId === "string" && { assignedToUserId }),
+        is_deleted: false,
+        ...(typeof status === "string" && { status }),
+        ...(typeof priority === "string" && { priority }),
+        ...(typeof requester_id === "string" && { requester_id }),
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { created_at: "desc" },
       take: typeof limit === "string" ? parseInt(limit, 10) : 50,
       skip: typeof offset === "string" ? parseInt(offset, 10) : 0,
     });
-
     return res.json(tickets);
   } catch (err) {
     next(err);
@@ -135,6 +136,7 @@ router.get("/", async (req, res, next) => {
  *   get:
  *     tags: [Tickets]
  *     summary: Get ticket by id
+ *     description: "Returns ticket if not soft-deleted."
  *     parameters:
  *       - in: path
  *         name: id
@@ -147,51 +149,14 @@ router.get("/", async (req, res, next) => {
  *       404:
  *         description: Ticket not found
  */
-/**
- * GET /tickets/:id
- */
 router.get("/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
-
-    const ticket = await prisma.ticket.findUnique({
-      where: { id },
-    });
-
+    const ticket = await prisma.ticket.findFirst({ where: { id, is_deleted: false } });
     if (!ticket) {
       throw new AppError("Ticket not found", 404);
     }
-
     return res.json(ticket);
-  } catch (err) {
-    next(err);
-  }
-});
-
-/**
- * @openapi
- * /tickets/created-by/{createdByUserId}:
- *   get:
- *     tags: [Tickets]
- *     summary: Get tickets by createdByUserId
- *     parameters:
- *       - in: path
- *         name: createdByUserId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: List of tickets created by the user
- */
-router.get("/created-by/:createdByUserId", async (req, res, next) => {
-  try {
-    const { createdByUserId } = req.params;
-    const tickets = await prisma.ticket.findMany({
-      where: { createdByUserId },
-      orderBy: { createdAt: "desc" },
-    });
-    return res.json(tickets);
   } catch (err) {
     next(err);
   }
@@ -203,6 +168,7 @@ router.get("/created-by/:createdByUserId", async (req, res, next) => {
  *   patch:
  *     tags: [Tickets]
  *     summary: Update a ticket
+ *     description: "Only allowed fields can be updated. Status transitions must be valid."
  *     parameters:
  *       - in: path
  *         name: id
@@ -220,52 +186,121 @@ router.get("/created-by/:createdByUserId", async (req, res, next) => {
  *                 type: string
  *               description:
  *                 type: string
+ *               building:
+ *                 type: string
+ *               room:
+ *                 type: string
  *               status:
  *                 type: string
- *                 enum: [OPEN, ASSIGNED, IN_PROGRESS, RESOLVED, CLOSED]
- *               priority:
- *                 type: string
- *                 enum: [LOW, MEDIUM, HIGH, CRITICAL]
- *               assignedToUserId:
+ *                 enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED]
+ *               resolution_summary:
  *                 type: string
  *     responses:
  *       200:
  *         description: OK
+ *       400:
+ *         description: Invalid state transition
  *       404:
  *         description: Ticket not found
- */
-/**
- * PATCH /tickets/:id
  */
 router.patch("/:id", validate(updateTicketSchema), async (req, res, next) => {
   try {
     const id = req.params.id as string;
     const updateData = req.body as UpdateTicketInput;
-
-    // Check if ticket exists
-    const existing = await prisma.ticket.findUnique({ where: { id } });
+    const existing = await prisma.ticket.findFirst({ where: { id, is_deleted: false } });
     if (!existing) {
       throw new AppError("Ticket not found", 404);
     }
-
-    // Handle status transitions
-    const data: any = { ...updateData };
-
-    if (updateData.status === "RESOLVED" && existing.status !== "RESOLVED") {
-      data.resolvedAt = new Date();
+    // State transition validation
+    if (updateData.status) {
+      const validTransitions: Record<string, string[]> = {
+        OPEN: ["IN_PROGRESS"],
+        IN_PROGRESS: ["RESOLVED"],
+        RESOLVED: ["CLOSED"],
+      };
+      if (
+        !validTransitions[existing.status]?.includes(updateData.status)
+      ) {
+        return res.status(400).json({ error: "Invalid state transition" });
+      }
+      // Closed timestamp
+      if (updateData.status === "CLOSED") {
+        // Prisma expects closed_at in the update object
+        (updateData as any).closed_at = new Date();
+      }
     }
-    if (updateData.status === "CLOSED" && existing.status !== "CLOSED") {
-      data.closedAt = new Date();
-    }
-
     const ticket = await prisma.ticket.update({
       where: { id },
-      data,
+      data: updateData,
     });
-
     await publishTicketUpdated(ticket);
-
     return res.json(ticket);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * @openapi
+ * /tickets/{id}/escalate:
+ *   post:
+ *     tags: [Tickets]
+ *     summary: Escalate a ticket
+ *     description: "Escalates ticket, increments escalation_count, updates assigned_to_level, and inserts escalation record."
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [from_level, to_level, reason]
+ *             properties:
+ *               from_level:
+ *                 type: string
+ *                 enum: [L1, L2, L3, L4]
+ *               to_level:
+ *                 type: string
+ *                 enum: [L1, L2, L3, L4]
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Ticket escalated
+ *       404:
+ *         description: Ticket not found
+ */
+router.post("/:id/escalate", validate(escalateTicketSchema), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { from_level, to_level, reason } = req.body as EscalateTicketInput;
+    const ticket = await prisma.ticket.findFirst({ where: { id, is_deleted: false } });
+    if (!ticket) {
+      throw new AppError("Ticket not found", 404);
+    }
+    // Insert escalation record
+    await prisma.ticketEscalation.create({
+      data: {
+        ticket_id: id,
+        from_level,
+        to_level,
+        reason,
+      },
+    });
+    // Update ticket
+    const updated = await prisma.ticket.update({
+      where: { id },
+      data: {
+        escalation_count: ticket.escalation_count + 1,
+        assigned_to_level: to_level,
+      },
+    });
+    return res.json(updated);
   } catch (err) {
     next(err);
   }
@@ -276,7 +311,8 @@ router.patch("/:id", validate(updateTicketSchema), async (req, res, next) => {
  * /tickets/{id}:
  *   delete:
  *     tags: [Tickets]
- *     summary: Delete a ticket
+ *     summary: Soft delete a ticket
+ *     description: "Sets is_deleted = true. Does not physically delete ticket. Escalations are cascade deleted if ticket is physically deleted."
  *     parameters:
  *       - in: path
  *         name: id
@@ -289,20 +325,14 @@ router.patch("/:id", validate(updateTicketSchema), async (req, res, next) => {
  *       404:
  *         description: Ticket not found
  */
-/**
- * DELETE /tickets/:id
- */
 router.delete("/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
-
-    const existing = await prisma.ticket.findUnique({ where: { id } });
+    const existing = await prisma.ticket.findFirst({ where: { id, is_deleted: false } });
     if (!existing) {
       throw new AppError("Ticket not found", 404);
     }
-
-    await prisma.ticket.delete({ where: { id } });
-
+    await prisma.ticket.update({ where: { id }, data: { is_deleted: true } });
     return res.status(204).send();
   } catch (err) {
     next(err);
