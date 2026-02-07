@@ -116,8 +116,8 @@ router.get("/", async (req, res, next) => {
     const tickets = await prisma.ticket.findMany({
       where: {
         is_deleted: false,
-        ...(typeof status === "string" && { status }),
-        ...(typeof priority === "string" && { priority }),
+        ...(typeof status === "string" && { status: status as any }),
+        ...(typeof priority === "string" && { priority: priority as any }),
         ...(typeof requester_id === "string" && { requester_id }),
       },
       orderBy: { created_at: "desc" },
@@ -277,7 +277,7 @@ router.patch("/:id", validate(updateTicketSchema), async (req, res, next) => {
  */
 router.post("/:id/escalate", validate(escalateTicketSchema), async (req, res, next) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { from_level, to_level, reason } = req.body as EscalateTicketInput;
     const ticket = await prisma.ticket.findFirst({ where: { id, is_deleted: false } });
     if (!ticket) {
@@ -327,7 +327,7 @@ router.post("/:id/escalate", validate(escalateTicketSchema), async (req, res, ne
  */
 router.delete("/:id", async (req, res, next) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const existing = await prisma.ticket.findFirst({ where: { id, is_deleted: false } });
     if (!existing) {
       throw new AppError("Ticket not found", 404);
