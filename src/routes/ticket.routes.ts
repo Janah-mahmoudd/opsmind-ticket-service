@@ -170,6 +170,35 @@ router.get("/:id", async (req, res, next) => {
 
 /**
  * @openapi
+ * /tickets/created-by/{createdByUserId}:
+ *   get:
+ *     tags: [Tickets]
+ *     summary: Get tickets by createdByUserId
+ *     parameters:
+ *       - in: path
+ *         name: createdByUserId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of tickets created by the user
+ */
+router.get("/created-by/:createdByUserId", async (req, res, next) => {
+  try {
+    const { createdByUserId } = req.params;
+    const tickets = await prisma.ticket.findMany({
+      where: { createdByUserId },
+      orderBy: { createdAt: "desc" },
+    });
+    return res.json(tickets);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * @openapi
  * /tickets/{id}:
  *   patch:
  *     tags: [Tickets]
