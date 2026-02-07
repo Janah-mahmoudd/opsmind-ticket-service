@@ -175,4 +175,4 @@ This sets your Git identity for this repository only.
 
 ## License
 
-ISC
+ISC///
