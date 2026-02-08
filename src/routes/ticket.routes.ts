@@ -136,6 +136,64 @@ router.get("/", async (req, res, next) => {
 
 /**
  * @openapi
+ * /tickets/requester/{requester_id}:
+ *   get:
+ *     tags: [Tickets]
+ *     summary: Get tickets by requester_id
+ *     description: "Returns all tickets for a specific requester (not soft-deleted)."
+ *     parameters:
+ *       - in: path
+ *         name: requester_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED]
+ *       - in: query
+ *         name: priority
+ *         schema:
+ *           type: string
+ *           enum: [LOW, MEDIUM, HIGH]
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *     responses:
+ *       200:
+ *         description: OK
+ */
+router.get("/requester/:requester_id", async (req, res, next) => {
+  try {
+    const { requester_id } = req.params;
+    const { status, priority, limit, offset } = req.query;
+    const tickets = await prisma.ticket.findMany({
+      where: {
+        is_deleted: false,
+        requester_id,
+        ...(typeof status === "string" && { status: status as any }),
+        ...(typeof priority === "string" && { priority: priority as any }),
+      },
+      orderBy: { created_at: "desc" },
+      take: typeof limit === "string" ? parseInt(limit, 10) : 50,
+      skip: typeof offset === "string" ? parseInt(offset, 10) : 0,
+    });
+    return res.json(tickets);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * @openapi
  * /tickets/{id}:
  *   get:
  *     tags: [Tickets]
