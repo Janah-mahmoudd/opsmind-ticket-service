@@ -1,6 +1,5 @@
 export default {
-  datasource: {
-    url: process.env.DATABASE_URL,
-    provider: "mysql",
+  migrate: {
+    datasourceUrl: process.env.DATABASE_URL,
   },
 };
