@@ -1,4 +1,5 @@
 import { Router } from "express";
+import axios from "axios";
 import { prisma } from "../lib/prisma";
 import {
   createTicketSchema,
@@ -11,6 +12,7 @@ import {
 import { AppError } from "../errors/AppError";
 import { publishTicketCreated, publishTicketUpdated } from "../events/publishers/ticket.publisher";
 import { validate } from "../middleware/validate.middleware";
+import { logger } from "../config/logger";
 
 const router = Router();
 
@@ -71,7 +73,52 @@ router.post("/", validate(createTicketSchema), async (req, res, next) => {
         is_deleted: false,
       },
     });
+    
+    logger.info(`✅ Ticket created successfully`, {
+      ticketId: ticket.id,
+      building: ticket.building,
+      room: ticket.room,
+      priority: ticket.priority,
+      requester_id: ticket.requester_id,
+    });
+    
     await publishTicketCreated(ticket);
+    
+    // Notify Workflow Service (non-blocking)
+    const workflowUrl = "http://opsmind-workflow:3003/workflow/route-ticket";
+    const workflowPayload = {
+      ticketId: ticket.id,
+      building: ticket.building,
+      floor: ticket.room, // Using room as floor since floor field doesn't exist yet
+      priority: ticket.priority,
+    };
+    
+    logger.info(`🔄 Calling Workflow Service for ticket routing`, {
+      ticketId: ticket.id,
+      workflowUrl,
+      payload: workflowPayload,
+    });
+    
+    try {
+      const workflowResponse = await axios.post(workflowUrl, workflowPayload);
+      logger.info(`✅ Workflow Service notified successfully`, {
+        ticketId: ticket.id,
+        status: workflowResponse.status,
+        data: workflowResponse.data,
+      });
+    } catch (workflowError: any) {
+      logger.error(`❌ Failed to notify Workflow Service`, {
+        ticketId: ticket.id,
+        workflowUrl,
+        error: workflowError.message,
+        code: workflowError.code,
+        response: workflowError.response?.data,
+        status: workflowError.response?.status,
+      });
+      // Do not rollback ticket creation - ticket remains valid
+      logger.warn(`⚠️ Ticket ${ticket.id} created but workflow routing failed - manual intervention may be needed`);
+    }
+    
     return res.status(201).json(ticket);
   } catch (err) {
     next(err);
@@ -260,6 +307,13 @@ router.get("/:id", async (req, res, next) => {
  *                 enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED]
  *               resolution_summary:
  *                 type: string
+ *               assigned_to:
+ *                 type: string
+ *                 description: UUID of the technician to assign
+ *               assigned_to_level:
+ *                 type: string
+ *                 enum: [L1, L2, L3, L4]
+ *                 description: Support level of the assignee
  *     responses:
  *       200:
  *         description: OK
