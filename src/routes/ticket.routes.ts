@@ -102,11 +102,14 @@ router.post("/", validate(createTicketSchema), async (req, res, next) => {
     });
     
     try {
-      const workflowResponse = await axios.post(workflowUrl, workflowPayload);
+      const workflowResponse = await fetch(workflowUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(workflowPayload),
+      });
       logger.info(`✅ Workflow Service notified successfully`, {
         ticketId: ticket.id,
         status: workflowResponse.status,
-        data: workflowResponse.data,
       });
     } catch (workflowError: any) {
       logger.error(`❌ Failed to notify Workflow Service`, {
@@ -114,8 +117,6 @@ router.post("/", validate(createTicketSchema), async (req, res, next) => {
         workflowUrl,
         error: workflowError.message,
         code: workflowError.code,
-        response: workflowError.response?.data,
-        status: workflowError.response?.status,
       });
       // Do not rollback ticket creation - ticket remains valid
       logger.warn(`⚠️ Ticket ${ticket.id} created but workflow routing failed - manual intervention may be needed`);
