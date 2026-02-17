@@ -22,6 +22,8 @@ export const updateTicketSchema = z.object({
   room: z.string().min(1, "Room is required").optional(),
   status: TicketStatusEnum.optional(),
   resolution_summary: z.string().optional(),
+  assigned_to: z.string().optional(),
+  assigned_to_level: SupportLevelEnum.optional(),
 });
 
 export const escalateTicketSchema = z.object({
