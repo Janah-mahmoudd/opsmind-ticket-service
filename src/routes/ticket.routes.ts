@@ -10,6 +10,7 @@ import {
 } from "../validation/ticket.schema";
 import { AppError } from "../errors/AppError";
 import { publishTicketCreated, publishTicketUpdated } from "../events/publishers/ticket.publisher";
+import { sendTicketOpenedNotification } from "../utils/notificationClient";
 import { validate } from "../middleware/validate.middleware";
 
 const router = Router();
@@ -72,6 +73,8 @@ router.post("/", validate(createTicketSchema), async (req, res, next) => {
       },
     });
     await publishTicketCreated(ticket);
+    // Fire-and-forget: notification failure must never break ticket creation
+    sendTicketOpenedNotification(ticket);
     return res.status(201).json(ticket);
   } catch (err) {
     next(err);
