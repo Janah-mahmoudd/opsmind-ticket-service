@@ -9,17 +9,15 @@ export const createTicketSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters"),
   description: z.string().min(5, "Description must be at least 5 characters"),
   type_of_request: RequestTypeEnum,
-  building: z.string().min(1, "Building is required"),
-  room: z.string().min(1, "Room is required"),
   requester_id: z.string().uuid("requester_id must be a valid UUID"),
+  latitude: z.number().min(-90, "latitude must be >= -90").max(90, "latitude must be <= 90"),
+  longitude: z.number().min(-180, "longitude must be >= -180").max(180, "longitude must be <= 180"),
 });
 
 export const updateTicketSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters").optional(),
   description: z.string().min(5, "Description must be at least 5 characters").optional(),
   type_of_request: RequestTypeEnum.optional(),
-  building: z.string().min(1, "Building is required").optional(),
-  room: z.string().min(1, "Room is required").optional(),
   status: TicketStatusEnum.optional(),
   resolution_summary: z.string().optional(),
   assigned_to: z.string().optional(),

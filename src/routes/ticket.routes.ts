@@ -22,14 +22,14 @@ const router = Router();
  *   post:
  *     tags: [Tickets]
  *     summary: Create a ticket
- *     description: "Only title, description, type_of_request, building, room, and requester_id are user-provided. All other fields are system-assigned. Initial status is OPEN."
+ *     description: "User-provided fields: title, description, type_of_request, requester_id, latitude, longitude. Priority, support level, and initial status (OPEN) are system-assigned. GPS coordinates are used by the Workflow Service for location-aware technician assignment weighted by proximity, workload, and priority."
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [title, description, type_of_request, building, room, requester_id]
+ *             required: [title, description, type_of_request, requester_id, latitude, longitude]
  *             properties:
  *               title:
  *                 type: string
@@ -38,21 +38,28 @@ const router = Router();
  *               type_of_request:
  *                 type: string
  *                 enum: [INCIDENT, SERVICE_REQUEST, MAINTENANCE]
- *               building:
- *                 type: string
- *               room:
- *                 type: string
  *               requester_id:
  *                 type: string
+ *                 description: UUID of the user submitting the ticket
+ *               latitude:
+ *                 type: number
+ *                 minimum: -90
+ *                 maximum: 90
+ *                 description: GPS latitude of the incident location — used for intelligent assignment
+ *               longitude:
+ *                 type: number
+ *                 minimum: -180
+ *                 maximum: 180
+ *                 description: GPS longitude of the incident location — used for intelligent assignment
  *     responses:
  *       201:
  *         description: Created
  */
 router.post("/", validate(createTicketSchema), async (req, res, next) => {
   try {
-    const { title, description, type_of_request, building, room, requester_id } = req.body as CreateTicketInput;
-    // System-assigned fields (static rules, example values)
-    const priority = "MEDIUM"; // Example static rule
+    const { title, description, type_of_request, requester_id, latitude, longitude } = req.body as CreateTicketInput;
+    // System-assigned fields — priority and support level are determined by the system, not the requester
+    const priority = "MEDIUM"; // Resolved by priority-classification rules in the Workflow Service
     const support_level = "L1";
     const assigned_to_level = "L1";
     const status = "OPEN";
@@ -62,9 +69,9 @@ router.post("/", validate(createTicketSchema), async (req, res, next) => {
         title,
         description,
         type_of_request,
-        building,
-        room,
         requester_id,
+        latitude,
+        longitude,
         priority,
         support_level,
         assigned_to_level,
@@ -76,24 +83,24 @@ router.post("/", validate(createTicketSchema), async (req, res, next) => {
     
     logger.info(`✅ Ticket created successfully`, {
       ticketId: ticket.id,
-      building: ticket.building,
-      room: ticket.room,
+      latitude: ticket.latitude,
+      longitude: ticket.longitude,
       priority: ticket.priority,
       requester_id: ticket.requester_id,
     });
     
     await publishTicketCreated(ticket);
     
-    // Notify Workflow Service (non-blocking)
+    // Notify Workflow Service (non-blocking) — provides coordinates and priority for intelligent assignment
     const workflowUrl = "http://opsmind-workflow:3003/workflow/route-ticket";
     const workflowPayload = {
       ticketId: ticket.id,
-      building: ticket.building,
-      floor: ticket.room, // Using room as floor since floor field doesn't exist yet
+      latitude: ticket.latitude,
+      longitude: ticket.longitude,
       priority: ticket.priority,
     };
     
-    logger.info(`🔄 Calling Workflow Service for ticket routing`, {
+    logger.info(`🔄 Calling Workflow Service for location-based ticket assignment`, {
       ticketId: ticket.id,
       workflowUrl,
       payload: workflowPayload,
@@ -116,7 +123,7 @@ router.post("/", validate(createTicketSchema), async (req, res, next) => {
         status: workflowError.response?.status,
       });
       // Do not rollback ticket creation - ticket remains valid
-      logger.warn(`⚠️ Ticket ${ticket.id} created but workflow routing failed - manual intervention may be needed`);
+      logger.warn(`⚠️ Ticket ${ticket.id} created but location-based assignment failed — manual assignment required via PATCH /tickets/:id`);
     }
     
     return res.status(201).json(ticket);
@@ -277,7 +284,7 @@ router.get("/:id", async (req, res, next) => {
  *   patch:
  *     tags: [Tickets]
  *     summary: Update a ticket
- *     description: "Only allowed fields can be updated. Status transitions must be valid."
+ *     description: "Updates allowed ticket fields. Status transitions are validated against the state machine (OPEN → IN_PROGRESS → RESOLVED → CLOSED). The assigned_to field is typically set by the Workflow Service after location-based assignment; it can also be set manually here."
  *     parameters:
  *       - in: path
  *         name: id
@@ -298,10 +305,6 @@ router.get("/:id", async (req, res, next) => {
  *               type_of_request:
  *                 type: string
  *                 enum: [INCIDENT, SERVICE_REQUEST, MAINTENANCE]
- *               building:
- *                 type: string
- *               room:
- *                 type: string
  *               status:
  *                 type: string
  *                 enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED]
@@ -309,11 +312,11 @@ router.get("/:id", async (req, res, next) => {
  *                 type: string
  *               assigned_to:
  *                 type: string
- *                 description: UUID of the technician to assign
+ *                 description: UUID of the technician — set automatically by location-based assignment or manually overridden here
  *               assigned_to_level:
  *                 type: string
  *                 enum: [L1, L2, L3, L4]
- *                 description: Support level of the assignee
+ *                 description: Support level of the assigned technician
  *     responses:
  *       200:
  *         description: OK

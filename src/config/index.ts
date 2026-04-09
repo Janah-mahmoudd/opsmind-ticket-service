@@ -9,7 +9,7 @@ export const config = {
   },
 
   rabbitmq: {
-    url: process.env.RABBITMQ_URL ?? "amqp://opsmind:opsmind@localhost:5672",
+    url: process.env.RABBITMQ_URL ?? "amqp://opsmind:opsmind@rabbitmq:5672",
   },
 
   cors: {
