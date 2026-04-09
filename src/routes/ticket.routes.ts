@@ -1,5 +1,4 @@
 import { Router } from "express";
-import axios from "axios";
 import { prisma } from "../lib/prisma";
 import {
   createTicketSchema,
@@ -11,6 +10,7 @@ import {
 } from "../validation/ticket.schema";
 import { AppError } from "../errors/AppError";
 import { publishTicketCreated, publishTicketUpdated } from "../events/publishers/ticket.publisher";
+import { sendTicketOpenedNotification } from "../utils/notificationClient";
 import { validate } from "../middleware/validate.middleware";
 import { logger } from "../config/logger";
 
@@ -90,6 +90,8 @@ router.post("/", validate(createTicketSchema), async (req, res, next) => {
     });
     
     await publishTicketCreated(ticket);
+    // Fire-and-forget: notification failure must never break ticket creation
+    sendTicketOpenedNotification(ticket);
     
     // Notify Workflow Service (non-blocking) — provides coordinates and priority for intelligent assignment
     const workflowUrl = "http://opsmind-workflow:3003/workflow/route-ticket";
@@ -107,11 +109,14 @@ router.post("/", validate(createTicketSchema), async (req, res, next) => {
     });
     
     try {
-      const workflowResponse = await axios.post(workflowUrl, workflowPayload);
+      const workflowResponse = await fetch(workflowUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(workflowPayload),
+      });
       logger.info(`✅ Workflow Service notified successfully`, {
         ticketId: ticket.id,
         status: workflowResponse.status,
-        data: workflowResponse.data,
       });
     } catch (workflowError: any) {
       logger.error(`❌ Failed to notify Workflow Service`, {
@@ -119,8 +124,6 @@ router.post("/", validate(createTicketSchema), async (req, res, next) => {
         workflowUrl,
         error: workflowError.message,
         code: workflowError.code,
-        response: workflowError.response?.data,
-        status: workflowError.response?.status,
       });
       // Do not rollback ticket creation - ticket remains valid
       logger.warn(`⚠️ Ticket ${ticket.id} created but location-based assignment failed — manual assignment required via PATCH /tickets/:id`);
