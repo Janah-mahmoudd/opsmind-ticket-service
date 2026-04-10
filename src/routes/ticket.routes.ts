@@ -13,6 +13,7 @@ import { publishTicketCreated, publishTicketUpdated } from "../events/publishers
 import { sendTicketOpenedNotification } from "../utils/notificationClient";
 import { validate } from "../middleware/validate.middleware";
 import { logger } from "../config/logger";
+import { enrichTicketWithTechnicianName, enrichTicketsWithTechnicianNames } from "../utils/ticketEnrichment";
 
 const router = Router();
 
@@ -185,7 +186,8 @@ router.get("/", async (req, res, next) => {
       take: typeof limit === "string" ? parseInt(limit, 10) : 50,
       skip: typeof offset === "string" ? parseInt(offset, 10) : 0,
     });
-    return res.json(tickets);
+    const enrichedTickets = await enrichTicketsWithTechnicianNames(tickets);
+    return res.json(enrichedTickets);
   } catch (err) {
     next(err);
   }
@@ -243,7 +245,8 @@ router.get("/requester/:requester_id", async (req, res, next) => {
       take: typeof limit === "string" ? parseInt(limit, 10) : 50,
       skip: typeof offset === "string" ? parseInt(offset, 10) : 0,
     });
-    return res.json(tickets);
+    const enrichedTickets = await enrichTicketsWithTechnicianNames(tickets);
+    return res.json(enrichedTickets);
   } catch (err) {
     next(err);
   }
@@ -275,7 +278,8 @@ router.get("/:id", async (req, res, next) => {
     if (!ticket) {
       throw new AppError("Ticket not found", 404);
     }
-    return res.json(ticket);
+    const enrichedTicket = await enrichTicketWithTechnicianName(ticket);
+    return res.json(enrichedTicket);
   } catch (err) {
     next(err);
   }
@@ -359,7 +363,8 @@ router.patch("/:id", validate(updateTicketSchema), async (req, res, next) => {
       data: updateData,
     });
     await publishTicketUpdated(ticket);
-    return res.json(ticket);
+    const enrichedTicket = await enrichTicketWithTechnicianName(ticket);
+    return res.json(enrichedTicket);
   } catch (err) {
     next(err);
   }
